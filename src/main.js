@@ -60,13 +60,36 @@ import { log } from "./utils.js";
     }, 4000);
   }
 
-  function handleKeyPress(event) {
+  async function handleKeyPress(event) {
     // Ctrl + Alt + C
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
       event.preventDefault();
 
-      const cookies = document.cookie;
+      let cookieList = null;
 
+      // Try to get cookies via GM.cookie API (supports HttpOnly)
+      if (typeof GM !== "undefined" && GM.cookie && typeof GM.cookie.list === "function") {
+        try {
+          log("🔍 Fetching all cookies (including HttpOnly)");
+          cookieList = await GM.cookie.list({ url: window.location.href });
+
+          if (cookieList && cookieList.length > 0) {
+            const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;
+            const cookiesString = cookieList.map((c) => `${c.name}=${c.value}`).join("; ");
+
+            log(`✅ Got ${cookieList.length} cookies (${httpOnlyCount} HttpOnly)`);
+            copyToClipboardGM(cookiesString) || copyToClipboardNav(cookiesString);
+            return;
+          }
+        } catch (err) {
+          log("⚠️ GM.cookie API failed, falling back to document.cookie");
+          console.error(err);
+        }
+      }
+
+      // Fallback to document.cookie (cannot get HttpOnly cookies)
+      log("🔍 Fetching cookies via document.cookie (HttpOnly excluded)");
+      const cookies = document.cookie;
       if (cookies) {
         copyToClipboardGM(cookies) || copyToClipboardNav(cookies);
       } else {

@@ -13,7 +13,7 @@ export default defineConfig({
         author: "Harry Huang",
         license: "MIT",
         match: ["https://*/*", "http://*/*"],
-        grant: ["GM_setClipboard"],
+        grant: ["GM_setClipboard", "GM_cookie"],
         source: "https://github.com/isHarryh/CookieChyan-JS",
         namespace: "https://github.com/isHarryh/CookieChyan-JS",
       },

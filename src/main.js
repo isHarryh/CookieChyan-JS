@@ -134,14 +134,10 @@ import { log } from "./utils.js";
     let cookieList = null;
 
     // Try to get cookies via GM.cookie API (supports HttpOnly)
-    if (
-      typeof GM !== "undefined" &&
-      GM.cookie &&
-      typeof GM.cookie.list === "function"
-    ) {
+    if (typeof GM_Cookie !== "undefined") {
       try {
         log("🔍 Fetching all cookies (including HttpOnly)");
-        cookieList = await GM.cookie.list({ url: window.location.href });
+        cookieList = await GM_Cookie.list({ url: window.location.href });
 
         if (cookieList && cookieList.length > 0) {
           const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;

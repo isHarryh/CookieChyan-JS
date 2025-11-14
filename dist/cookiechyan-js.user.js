@@ -8,7 +8,9 @@
 // @source       https://github.com/isHarryh/CookieChyan-JS
 // @match        https://*/*
 // @match        http://*/*
+// @grant        GM.cookie
 // @grant        GM_addStyle
+// @grant        GM_cookie
 // @grant        GM_setClipboard
 // ==/UserScript==
 
@@ -69,9 +71,27 @@
         }, 200);
       }, 4e3);
     }
-    function handleKeyPress(event) {
+    async function handleKeyPress(event) {
       if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
+        let cookieList = null;
+        if (typeof GM !== "undefined" && GM.cookie && typeof GM.cookie.list === "function") {
+          try {
+            log("🔍 Fetching all cookies (including HttpOnly)");
+            cookieList = await GM.cookie.list({ url: window.location.href });
+            if (cookieList && cookieList.length > 0) {
+              const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;
+              const cookiesString = cookieList.map((c) => `${c.name}=${c.value}`).join("; ");
+              log(`✅ Got ${cookieList.length} cookies (${httpOnlyCount} HttpOnly)`);
+              copyToClipboardGM(cookiesString) || copyToClipboardNav(cookiesString);
+              return;
+            }
+          } catch (err) {
+            log("⚠️ GM.cookie API failed, falling back to document.cookie");
+            console.error(err);
+          }
+        }
+        log("🔍 Fetching cookies via document.cookie (HttpOnly excluded)");
         const cookies = document.cookie;
         if (cookies) {
           copyToClipboardGM(cookies) || copyToClipboardNav(cookies);

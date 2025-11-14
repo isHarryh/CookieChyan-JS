@@ -63,7 +63,7 @@ import { log } from "./utils.js";
   function showFormatDialog() {
     const buttons = [
       { text: "Cookie String", enabled: true, format: "cookie-string" },
-      { text: "Cookie JSON", enabled: false, format: "cookie-json" },
+      { text: "Cookie JSON", enabled: true, format: "cookie-json" },
       { text: "Origins JSON", enabled: false, format: "origins-json" },
       { text: "State JSON", enabled: false, format: "state-json" },
     ];
@@ -169,6 +169,21 @@ import { log } from "./utils.js";
     }
   }
 
+  function normalizeCookie(cookie) {
+    // Centralized default values
+    const defaultExpires = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
+
+    return {
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      expires: cookie.expirationDate || defaultExpires,
+      httpOnly: cookie.httpOnly || false,
+      secure: cookie.secure || false,
+      sameSite: cookie.sameSite || "Lax",
+    };
+  }
+
   function formatCookies(cookieData, format) {
     if (format === "cookie-string") {
       if (typeof cookieData === "string") {
@@ -176,9 +191,52 @@ import { log } from "./utils.js";
       } else if (Array.isArray(cookieData)) {
         return cookieData.map((c) => `${c.name}=${c.value}`).join("; ");
       }
+    } else if (format === "cookie-json") {
+      let cookieList;
+      if (typeof cookieData === "string") {
+        // Parse from document.cookie string
+        cookieList = parseCookiesFromString(cookieData);
+      } else if (Array.isArray(cookieData)) {
+        // Already have cookie list from GM_cookie API
+        cookieList = cookieData;
+      } else {
+        return "[]";
+      }
+
+      return JSON.stringify(cookieList.map(normalizeCookie), null, 2);
     }
     // TODO: Implement other formats
     return cookieData;
+  }
+
+  function parseCookiesFromString(cookieString) {
+    if (!cookieString) {
+      return [];
+    }
+
+    const cookiePairs = cookieString.split(";");
+    const cookieArray = [];
+
+    cookiePairs.forEach((pair) => {
+      const [name, value] = pair
+        .trim()
+        .split("=")
+        .map((s) => s.trim());
+
+      if (name) {
+        cookieArray.push({
+          name: name,
+          value: value || "",
+          domain: window.location.hostname,
+          expirationDate: null,
+          httpOnly: null,
+          secure: null,
+          sameSite: null,
+        });
+      }
+    });
+
+    return cookieArray;
   }
 
   async function handleKeyPress(event) {

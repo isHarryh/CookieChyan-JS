@@ -60,42 +60,136 @@ import { log } from "./utils.js";
     }, 4000);
   }
 
+  function showFormatDialog() {
+    const buttons = [
+      { text: "Cookie String", enabled: true, format: "cookie-string" },
+      { text: "Cookie JSON", enabled: false, format: "cookie-json" },
+      { text: "Origins JSON", enabled: false, format: "origins-json" },
+      { text: "State JSON", enabled: false, format: "state-json" },
+    ];
+
+    // Create overlay
+    const overlay = document.createElement("div");
+    overlay.className = "cookie-chyan-overlay";
+
+    // Create dialog
+    const dialog = document.createElement("div");
+    dialog.className = "cookie-chyan-dialog";
+
+    // Create title
+    const title = document.createElement("div");
+    title.className = "cookie-chyan-dialog-title";
+    title.textContent = "Select Cookie Format";
+    dialog.appendChild(title);
+
+    // Create button container
+    const buttonContainer = document.createElement("div");
+    buttonContainer.className = "cookie-chyan-dialog-buttons";
+
+    // Create buttons
+    buttons.forEach((btn) => {
+      const button = document.createElement("button");
+      button.className = "cookie-chyan-dialog-button";
+      button.textContent = btn.text;
+      button.disabled = !btn.enabled;
+
+      if (!btn.enabled) {
+        button.style.backgroundColor = "#cccccc";
+        button.style.cursor = "not-allowed";
+      }
+
+      button.addEventListener("click", () => {
+        if (btn.enabled) {
+          overlay.remove();
+          handleCookieCopy(btn.format);
+        }
+      });
+
+      buttonContainer.appendChild(button);
+    });
+
+    dialog.appendChild(buttonContainer);
+    overlay.appendChild(dialog);
+
+    // Close dialog when clicking overlay
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+      }
+    });
+
+    // Close dialog with Escape key
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        overlay.remove();
+        document.removeEventListener("keydown", handleEscape);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+
+    document.body.appendChild(overlay);
+  }
+
+  async function handleCookieCopy(format) {
+    let cookieList = null;
+
+    // Try to get cookies via GM.cookie API (supports HttpOnly)
+    if (
+      typeof GM !== "undefined" &&
+      GM.cookie &&
+      typeof GM.cookie.list === "function"
+    ) {
+      try {
+        log("🔍 Fetching all cookies (including HttpOnly)");
+        cookieList = await GM.cookie.list({ url: window.location.href });
+
+        if (cookieList && cookieList.length > 0) {
+          const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;
+          log(
+            `✅ Got ${cookieList.length} cookies (${httpOnlyCount} HttpOnly)`
+          );
+
+          const formattedCookies = formatCookies(cookieList, format);
+          copyToClipboardGM(formattedCookies) ||
+            copyToClipboardNav(formattedCookies);
+          return;
+        }
+      } catch (err) {
+        log("⚠️ GM.cookie API failed, falling back to document.cookie");
+        console.error(err);
+      }
+    }
+
+    // Fallback to document.cookie (cannot get HttpOnly cookies)
+    log("🔍 Fetching cookies via document.cookie (HttpOnly excluded)");
+    const cookies = document.cookie;
+    if (cookies) {
+      const formattedCookies = formatCookies(cookies, format);
+      copyToClipboardGM(formattedCookies) ||
+        copyToClipboardNav(formattedCookies);
+    } else {
+      log("🚮 No cookies found.");
+      showNotification("No cookies found.", "#bd741488");
+    }
+  }
+
+  function formatCookies(cookieData, format) {
+    if (format === "cookie-string") {
+      if (typeof cookieData === "string") {
+        return cookieData;
+      } else if (Array.isArray(cookieData)) {
+        return cookieData.map((c) => `${c.name}=${c.value}`).join("; ");
+      }
+    }
+    // TODO: Implement other formats
+    return cookieData;
+  }
+
   async function handleKeyPress(event) {
     // Ctrl + Alt + C
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
       event.preventDefault();
-
-      let cookieList = null;
-
-      // Try to get cookies via GM.cookie API (supports HttpOnly)
-      if (typeof GM !== "undefined" && GM.cookie && typeof GM.cookie.list === "function") {
-        try {
-          log("🔍 Fetching all cookies (including HttpOnly)");
-          cookieList = await GM.cookie.list({ url: window.location.href });
-
-          if (cookieList && cookieList.length > 0) {
-            const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;
-            const cookiesString = cookieList.map((c) => `${c.name}=${c.value}`).join("; ");
-
-            log(`✅ Got ${cookieList.length} cookies (${httpOnlyCount} HttpOnly)`);
-            copyToClipboardGM(cookiesString) || copyToClipboardNav(cookiesString);
-            return;
-          }
-        } catch (err) {
-          log("⚠️ GM.cookie API failed, falling back to document.cookie");
-          console.error(err);
-        }
-      }
-
-      // Fallback to document.cookie (cannot get HttpOnly cookies)
-      log("🔍 Fetching cookies via document.cookie (HttpOnly excluded)");
-      const cookies = document.cookie;
-      if (cookies) {
-        copyToClipboardGM(cookies) || copyToClipboardNav(cookies);
-      } else {
-        log("🚮 No cookies found.");
-        showNotification("No cookies found.", "#bd741488");
-      }
+      showFormatDialog();
     }
   }
 

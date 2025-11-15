@@ -1,10 +1,5 @@
 import "./style.css";
-import {
-  log,
-  showNotification,
-  copyToClipboardGM,
-  copyToClipboardNav,
-} from "./utils.js";
+import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
 
 (function () {
   "use strict";
@@ -31,6 +26,11 @@ import {
     title.textContent = "Select Cookie Format";
     dialog.appendChild(title);
 
+    // Create status div
+    const statusDiv = document.createElement("div");
+    statusDiv.className = "cookie-chyan-dialog-status";
+    dialog.appendChild(statusDiv);
+
     // Create button container
     const buttonContainer = document.createElement("div");
     buttonContainer.className = "cookie-chyan-dialog-buttons";
@@ -41,9 +41,15 @@ import {
       button.className = "cookie-chyan-dialog-button";
       button.textContent = btn.text;
 
-      button.addEventListener("click", () => {
-        overlay.remove();
-        handleCookieCopy(btn.format);
+      button.addEventListener("click", async () => {
+        const success = await handleCookieCopy(btn.format);
+        if (success) {
+          statusDiv.textContent = "Cookies successfully copied!";
+          statusDiv.style.color = "green";
+        } else {
+          statusDiv.textContent = "Failed to copy cookies.";
+          statusDiv.style.color = "red";
+        }
       });
 
       buttonContainer.appendChild(button);
@@ -87,9 +93,10 @@ import {
           );
 
           const formattedCookies = formatCookies(cookieList, format);
-          copyToClipboardGM(formattedCookies) ||
-            copyToClipboardNav(formattedCookies);
-          return;
+          const success =
+            copyToClipboardGM(formattedCookies) ||
+            (await copyToClipboardNav(formattedCookies));
+          return success;
         }
       } catch (err) {
         log("⚠️ GM.cookie API failed, falling back to document.cookie");
@@ -102,11 +109,13 @@ import {
     const cookies = document.cookie;
     if (cookies) {
       const formattedCookies = formatCookies(cookies, format);
-      copyToClipboardGM(formattedCookies) ||
-        copyToClipboardNav(formattedCookies);
+      const success =
+        copyToClipboardGM(formattedCookies) ||
+        (await copyToClipboardNav(formattedCookies));
+      return success;
     } else {
       log("🚮 No cookies found.");
-      showNotification("No cookies found.", "#bd741488");
+      return false;
     }
   }
 

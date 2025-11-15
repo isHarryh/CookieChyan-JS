@@ -4,12 +4,12 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
 (function () {
   "use strict";
 
-  function showFormatDialog() {
-    const buttons = [
-      { text: "Cookie String", format: "cookie-string" },
-      { text: "Cookie JSON", format: "cookie-json" },
-      { text: "Origins JSON", format: "origins-json" },
-      { text: "State JSON", format: "state-json" },
+  function showActionsDialog() {
+    const actions = [
+      { text: "Cookie String", action: "cookie-string" },
+      { text: "Cookie JSON", action: "cookie-json" },
+      { text: "Origins JSON", action: "origins-json" },
+      { text: "State JSON", action: "state-json" },
     ];
 
     // Create overlay
@@ -23,7 +23,7 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
     // Create title
     const title = document.createElement("div");
     title.className = "cookie-chyan-dialog-title";
-    title.textContent = "Select Cookie Format";
+    title.textContent = "Select Format to Copy";
     dialog.appendChild(title);
 
     // Create status div
@@ -35,230 +35,150 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
     const buttonContainer = document.createElement("div");
     buttonContainer.className = "cookie-chyan-dialog-buttons";
 
-    // Create buttons
-    buttons.forEach((btn) => {
-      const button = document.createElement("button");
-      button.className = "cookie-chyan-dialog-button";
-      button.textContent = btn.text;
-
-      button.addEventListener("click", async () => {
-        const success = await handleCookieCopy(btn.format);
-        if (success) {
-          statusDiv.textContent = "Cookies successfully copied!";
-          statusDiv.style.color = "green";
-        } else {
-          statusDiv.textContent = "Failed to copy cookies.";
-          statusDiv.style.color = "red";
-        }
+    actions.forEach((act) => {
+      const btn = document.createElement("button");
+      btn.className = "cookie-chyan-dialog-button";
+      btn.textContent = act.text;
+      btn.addEventListener("click", async () => {
+        const ok = await handleAction(act.action, statusDiv);
+        statusDiv.style.color = ok ? "green" : "red";
       });
-
-      buttonContainer.appendChild(button);
+      buttonContainer.appendChild(btn);
     });
 
     dialog.appendChild(buttonContainer);
     overlay.appendChild(dialog);
 
-    // Close dialog when clicking overlay
+    // Overlay click handler
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) {
-        overlay.remove();
-      }
+      if (e.target === overlay) overlay.remove();
     });
 
-    // Close dialog with Escape key
-    const handleEscape = (e) => {
+    // Escape key handler
+    document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         overlay.remove();
-        document.removeEventListener("keydown", handleEscape);
+        document.removeEventListener("keydown", escHandler);
       }
-    };
-    document.addEventListener("keydown", handleEscape);
+    });
 
     document.body.appendChild(overlay);
   }
 
-  async function handleCookieCopy(format) {
-    let cookieList = null;
-
-    // Try to get cookies via GM.cookie API (supports HttpOnly)
-    if (typeof GM_Cookie !== "undefined") {
-      try {
-        log("🔍 Fetching all cookies (including HttpOnly)");
-        cookieList = await GM_Cookie.list({ url: window.location.href });
-
-        if (cookieList && cookieList.length > 0) {
-          const httpOnlyCount = cookieList.filter((c) => c.httpOnly).length;
-          log(
-            `✅ Got ${cookieList.length} cookies (${httpOnlyCount} HttpOnly)`
-          );
-
-          const formattedCookies = formatCookies(cookieList, format);
-          const success =
-            copyToClipboardGM(formattedCookies) ||
-            (await copyToClipboardNav(formattedCookies));
-          return success;
-        }
-      } catch (err) {
-        log("⚠️ GM.cookie API failed, falling back to document.cookie");
-        console.error(err);
+  async function handleAction(type, statusEl) {
+    try {
+      let output = "";
+      if (type === "cookie-string") {
+        output = getCookieString();
+      } else if (type === "cookie-json") {
+        const cookies = await getCookiesData();
+        output = JSON.stringify(cookies, null, 2);
+      } else if (type === "origins-json") {
+        const origins = getOriginsData();
+        output = JSON.stringify(origins, null, 2);
+      } else if (type === "state-json") {
+        const cookies = await getCookiesData();
+        const origins = getOriginsData();
+        output = JSON.stringify({ cookies, origins }, null, 2);
+      } else {
+        log("❌ Unsupported copy format: " + type);
+        statusEl.textContent = "Unsupported action.";
+        return false;
       }
-    }
 
-    // Fallback to document.cookie (cannot get HttpOnly cookies)
-    log("🔍 Fetching cookies via document.cookie (HttpOnly excluded)");
-    const cookies = document.cookie;
-    if (cookies) {
-      const formattedCookies = formatCookies(cookies, format);
-      const success =
-        copyToClipboardGM(formattedCookies) ||
-        (await copyToClipboardNav(formattedCookies));
-      return success;
-    } else {
-      log("🚮 No cookies found.");
+      const ok =
+        copyToClipboardGM(output) || (await copyToClipboardNav(output));
+      log("✅ Copy action '" + type + "' completed, okay=" + ok);
+      statusEl.textContent = ok ? "Copied successfully." : "Copy failed.";
+      return ok;
+    } catch (e) {
+      log("❌ Handle copy action failed, details show below.");
+      console.error(e);
+      statusEl.textContent = "Error: " + e.message;
       return false;
     }
   }
 
-  function normalizeCookie(cookie) {
-    // Centralized default values
+  function getCookieString() {
+    // Note that this is a fast path; accurate cookie retrieval is in getCookiesData.
+    return document.cookie ? document.cookie : "";
+  }
+
+  async function getCookiesData() {
     const defaultExpires = Math.floor(Date.now() / 1000) + 7 * 24 * 3600;
-
-    return {
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain,
-      expires: cookie.expirationDate || defaultExpires,
-      httpOnly: cookie.httpOnly || false,
-      secure: cookie.secure || false,
-      sameSite: cookie.sameSite || "Lax",
-    };
-  }
-
-  function formatCookies(cookieData, format) {
-    if (format === "cookie-string") {
-      if (typeof cookieData === "string") {
-        return cookieData;
-      } else if (Array.isArray(cookieData)) {
-        return cookieData.map((c) => `${c.name}=${c.value}`).join("; ");
-      }
-    } else if (format === "cookie-json") {
-      let cookieList;
-      if (typeof cookieData === "string") {
-        // Parse from document.cookie string
-        cookieList = parseCookiesFromString(cookieData);
-      } else if (Array.isArray(cookieData)) {
-        // Already have cookie list from GM_cookie API
-        cookieList = cookieData;
-      } else {
-        return "[]";
-      }
-
-      return JSON.stringify(cookieList.map(normalizeCookie), null, 2);
-    } else if (format === "origins-json") {
-      const origin = window.location.origin;
-      const localStorage = getLocalStorage();
-
-      const originsData = [
-        {
-          origin: origin,
-          localStorage: localStorage,
-        },
-      ];
-
-      return JSON.stringify(originsData, null, 2);
-    } else if (format === "state-json") {
-      // Get cookies
-      let cookieList;
-      if (typeof cookieData === "string") {
-        cookieList = parseCookiesFromString(cookieData);
-      } else if (Array.isArray(cookieData)) {
-        cookieList = cookieData;
-      } else {
-        cookieList = [];
-      }
-
-      const normalizedCookies = cookieList.map(normalizeCookie);
-
-      // Get origins data
-      const origin = window.location.origin;
-      const localStorage = getLocalStorage();
-      const originsData = [
-        {
-          origin: origin,
-          localStorage: localStorage,
-        },
-      ];
-
-      // Combine into state object
-      const stateData = {
-        cookies: normalizedCookies,
-        origins: originsData,
-      };
-
-      return JSON.stringify(stateData, null, 2);
-    }
-    log("❌ Unsupported format requested:", format);
-    throw new Error("Unsupported format: " + format);
-  }
-
-  function getLocalStorage() {
-    const storageItems = [];
-
-    try {
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        const value = window.localStorage.getItem(key);
-        storageItems.push({
-          name: key,
-          value: value,
-        });
-      }
-    } catch (err) {
-      log("⚠️ Failed to read localStorage:", err);
-    }
-
-    return storageItems;
-  }
-
-  function parseCookiesFromString(cookieString) {
-    if (!cookieString) {
-      return [];
-    }
-
-    const cookiePairs = cookieString.split(";");
-    const cookieArray = [];
-
-    cookiePairs.forEach((pair) => {
-      const [name, value] = pair
-        .trim()
-        .split("=")
-        .map((s) => s.trim());
-
-      if (name) {
-        cookieArray.push({
-          name: name,
-          value: value || "",
-          domain: window.location.hostname,
-          expirationDate: null,
-          httpOnly: null,
-          secure: null,
-          sameSite: null,
-        });
-      }
+    const normalize = (c) => ({
+      name: c.name,
+      value: c.value,
+      domain: c.domain,
+      expires: c.expirationDate || defaultExpires,
+      httpOnly: !!c.httpOnly,
+      secure: !!c.secure,
+      sameSite: c.sameSite || "Lax",
     });
 
-    return cookieArray;
-  }
-
-  async function handleKeyPress(event) {
-    // Ctrl + Alt + C
-    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
-      event.preventDefault();
-      showFormatDialog();
+    if (typeof GM_Cookie !== "undefined") {
+      try {
+        const list = await GM_Cookie.list({ url: window.location.href });
+        if (Array.isArray(list) && list.length) {
+          return list.map(normalize);
+        }
+      } catch (e) {
+        log("❌ Invoke GM_Cookie list failed, using fallback.");
+      }
     }
+
+    // Fallback
+    const raw = document.cookie || "";
+    if (!raw) return [];
+    return raw.split(";").map((p) => {
+      const [name, value] = p.trim().split("=");
+      return normalize({
+        name: name,
+        value: value || "",
+        domain: window.location.hostname,
+        expirationDate: null,
+        httpOnly: false,
+        secure: false,
+        sameSite: "Lax",
+      });
+    });
   }
 
-  document.addEventListener("keydown", handleKeyPress);
+  function getOriginsData() {
+    const items = [];
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        items.push({ name: k, value: window.localStorage.getItem(k) });
+      }
+    } catch (e) {
+      log("❌ Read localStorage failed, details show below.");
+      console.error(e);
+    }
+    return [
+      {
+        origin: window.location.origin,
+        localStorage: items,
+      },
+    ];
+  }
+
+  document.addEventListener("keydown", (e) => {
+    // Ctrl + Alt + C
+    if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      showActionsDialog();
+    }
+  });
+
+  // Expose to window (for console usage)
+  window.CookieChyanJS = {
+    showActionsDialog,
+    handleAction,
+    getCookieString,
+    getCookiesData,
+    getOriginsData,
+  };
 
   log("🚀 CookieChyan-JS script successfully loaded!");
 })();

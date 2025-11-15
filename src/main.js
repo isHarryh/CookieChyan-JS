@@ -62,10 +62,10 @@ import { log } from "./utils.js";
 
   function showFormatDialog() {
     const buttons = [
-      { text: "Cookie String", enabled: true, format: "cookie-string" },
-      { text: "Cookie JSON", enabled: true, format: "cookie-json" },
-      { text: "Origins JSON", enabled: false, format: "origins-json" },
-      { text: "State JSON", enabled: false, format: "state-json" },
+      { text: "Cookie String", format: "cookie-string" },
+      { text: "Cookie JSON", format: "cookie-json" },
+      { text: "Origins JSON", format: "origins-json" },
+      { text: "State JSON", format: "state-json" },
     ];
 
     // Create overlay
@@ -91,18 +91,10 @@ import { log } from "./utils.js";
       const button = document.createElement("button");
       button.className = "cookie-chyan-dialog-button";
       button.textContent = btn.text;
-      button.disabled = !btn.enabled;
-
-      if (!btn.enabled) {
-        button.style.backgroundColor = "#cccccc";
-        button.style.cursor = "not-allowed";
-      }
 
       button.addEventListener("click", () => {
-        if (btn.enabled) {
-          overlay.remove();
-          handleCookieCopy(btn.format);
-        }
+        overlay.remove();
+        handleCookieCopy(btn.format);
       });
 
       buttonContainer.appendChild(button);
@@ -204,9 +196,70 @@ import { log } from "./utils.js";
       }
 
       return JSON.stringify(cookieList.map(normalizeCookie), null, 2);
+    } else if (format === "origins-json") {
+      const origin = window.location.origin;
+      const localStorage = getLocalStorage();
+
+      const originsData = [
+        {
+          origin: origin,
+          localStorage: localStorage,
+        },
+      ];
+
+      return JSON.stringify(originsData, null, 2);
+    } else if (format === "state-json") {
+      // Get cookies
+      let cookieList;
+      if (typeof cookieData === "string") {
+        cookieList = parseCookiesFromString(cookieData);
+      } else if (Array.isArray(cookieData)) {
+        cookieList = cookieData;
+      } else {
+        cookieList = [];
+      }
+
+      const normalizedCookies = cookieList.map(normalizeCookie);
+
+      // Get origins data
+      const origin = window.location.origin;
+      const localStorage = getLocalStorage();
+      const originsData = [
+        {
+          origin: origin,
+          localStorage: localStorage,
+        },
+      ];
+
+      // Combine into state object
+      const stateData = {
+        cookies: normalizedCookies,
+        origins: originsData,
+      };
+
+      return JSON.stringify(stateData, null, 2);
     }
-    // TODO: Implement other formats
-    return cookieData;
+    log("❌ Unsupported format requested:", format);
+    throw new Error("Unsupported format: " + format);
+  }
+
+  function getLocalStorage() {
+    const storageItems = [];
+
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        const value = window.localStorage.getItem(key);
+        storageItems.push({
+          name: key,
+          value: value,
+        });
+      }
+    } catch (err) {
+      log("⚠️ Failed to read localStorage:", err);
+    }
+
+    return storageItems;
   }
 
   function parseCookiesFromString(cookieString) {

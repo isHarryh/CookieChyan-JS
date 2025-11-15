@@ -16,6 +16,10 @@ export default defineConfig({
         grant: ["GM_setClipboard", "GM_cookie"],
         source: "https://github.com/isHarryh/CookieChyan-JS",
         namespace: "https://github.com/isHarryh/CookieChyan-JS",
+        updateURL:
+          "https://github.com/isHarryh/CookieChyan-JS/raw/refs/heads/main/dist/cookiechyan-js.user.js",
+        downloadURL:
+          "https://github.com/isHarryh/CookieChyan-JS/raw/refs/heads/main/dist/cookiechyan-js.user.js",
       },
     }),
   ],

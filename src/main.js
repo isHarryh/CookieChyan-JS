@@ -5,6 +5,12 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
   "use strict";
 
   function showActionsDialog() {
+    // Prevent multiple dialogs
+    if (document.querySelector(".cookie-chyan-overlay")) {
+      log("🙂 CookieChyan-JS dialog is already open.");
+      return;
+    }
+
     const actions = [
       { text: "Cookie String", action: "cookie-string" },
       { text: "Cookie JSON", action: "cookie-json" },
@@ -42,6 +48,12 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
       btn.addEventListener("click", async () => {
         const ok = await handleAction(act.action, statusDiv);
         statusDiv.style.color = ok ? "green" : "red";
+        if (ok) {
+          setTimeout(() => {
+            overlay.classList.add("exit");
+            setTimeout(() => overlay.remove(), 300);
+          }, 1000);
+        }
       });
       buttonContainer.appendChild(btn);
     });

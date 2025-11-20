@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CookieChyan-JS
 // @namespace    https://github.com/isHarryh/CookieChyan-JS
-// @version      0.3.1
+// @version      0.3.2
 // @author       Harry Huang
 // @description  A Convenience Tool to Retrieve Cookies in Any Webpage
 // @license      MIT
@@ -10,8 +10,8 @@
 // @updateURL    https://github.com/isHarryh/CookieChyan-JS/raw/refs/heads/main/dist/cookiechyan-js.user.js
 // @match        https://*/*
 // @match        http://*/*
+// @grant        GM.cookie
 // @grant        GM_addStyle
-// @grant        GM_cookie
 // @grant        GM_setClipboard
 // ==/UserScript==
 
@@ -20,7 +20,7 @@
 
   const d=new Set;const importCSS = async e=>{d.has(e)||(d.add(e),(t=>{typeof GM_addStyle=="function"?GM_addStyle(t):document.head.appendChild(document.createElement("style")).append(t);})(e));};
 
-  const styleCss = ".cookie-chyan-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:#00000080;display:flex;justify-content:center;align-items:center;z-index:999999}.cookie-chyan-dialog{background-color:#fff;border-radius:8px;padding:30px;box-shadow:0 8px 32px #0000004d;min-width:400px}.cookie-chyan-dialog-title{font-family:Consolas;font-size:20px;font-weight:700;color:#333;margin-bottom:20px;text-align:center}.cookie-chyan-dialog-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cookie-chyan-dialog-button{padding:12px 20px;font-family:Consolas;font-size:16px;font-weight:500;color:#fff;background-color:#4caf50;border:none;border-radius:5px;cursor:pointer;transition:background-color .3s,transform .1s}.cookie-chyan-dialog-button:hover:not(:disabled){background-color:#45a049;transform:translateY(-1px)}.cookie-chyan-dialog-button:active:not(:disabled){transform:translateY(0)}@keyframes fadeOut{0%{opacity:1}to{opacity:0}}.cookie-chyan-overlay.exit{animation:fadeOut .3s ease-out}";
+  const styleCss = ".cookie-chyan-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:#00000080;display:flex;justify-content:center;align-items:center;z-index:999999}.cookie-chyan-dialog{background-color:#fff;border-radius:8px;padding:30px;box-shadow:0 8px 32px #0000004d;min-width:400px}.cookie-chyan-dialog-title{font-family:Consolas;font-size:20px;font-weight:700;color:#333;margin-bottom:20px;text-align:center}.cookie-chyan-dialog-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cookie-chyan-dialog-button{padding:12px 20px;font-family:Consolas;font-size:16px;font-weight:500;color:#fff;background-color:#4caf50;border:none;border-radius:5px;cursor:pointer;transition:background-color .3s,transform .1s}.cookie-chyan-dialog-button:hover:not(:disabled){background-color:#45a049;transform:translateY(-1px)}.cookie-chyan-dialog-button:active:not(:disabled){transform:translateY(0)}.cookie-chyan-dialog-status{font-family:Consolas;font-size:14px;margin-bottom:20px;text-align:center;min-height:20px}@keyframes fadeOut{0%{opacity:1}to{opacity:0}}.cookie-chyan-overlay.exit{animation:fadeOut .3s ease-out}";
   importCSS(styleCss);
   function log(msg) {
     console.log(`[CookieChyan-JS] ${msg}`);
@@ -81,8 +81,8 @@
           if (ok) {
             setTimeout(() => {
               overlay.classList.add("exit");
-              setTimeout(() => overlay.remove(), 300);
-            }, 1e3);
+              setTimeout(() => overlay.remove(), 250);
+            }, 250);
           }
         });
         buttonContainer.appendChild(btn);
@@ -144,18 +144,29 @@
         expires: c.expirationDate || defaultExpires,
         httpOnly: !!c.httpOnly,
         secure: !!c.secure,
-        sameSite: c.sameSite || "Lax"
+        sameSite: ((s) => {
+          if (!s) return "Lax";
+          switch (s.toLowerCase()) {
+            case "none":
+              return "None";
+            case "strict":
+              return "Strict";
+            default:
+              return "Lax";
+          }
+        })(c.sameSite)
       });
-      if (typeof GM_Cookie !== "undefined") {
+      if (typeof GM !== "undefined" && typeof GM.cookie !== "undefined") {
         try {
-          const list = await GM_Cookie.list({ url: window.location.href });
+          const list = await GM.cookie.list({ url: window.location.href });
           if (Array.isArray(list) && list.length) {
+            log("😊 Retrieved cookies via GM API");
             return list.map(normalize);
           }
-        } catch (e) {
-          log("❌ Invoke GM_Cookie list failed, using fallback.");
+        } catch {
         }
       }
+      log("😕 Invoke GM_Cookie list failed, using fallback.");
       const raw = document.cookie || "";
       if (!raw) return [];
       return raw.split(";").map((p) => {
@@ -163,12 +174,7 @@
         return normalize({
           name,
           value: value || "",
-          domain: window.location.hostname,
-          path: "/",
-          expirationDate: null,
-          httpOnly: false,
-          secure: false,
-          sameSite: "Lax"
+          domain: window.location.hostname
         });
       });
     }

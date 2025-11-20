@@ -8,7 +8,7 @@ export default defineConfig({
       entry: "src/main.js",
       userscript: {
         name: "CookieChyan-JS",
-        version: "0.3.1",
+        version: "0.3.2",
         description: "A Convenience Tool to Retrieve Cookies in Any Webpage",
         author: "Harry Huang",
         license: "MIT",

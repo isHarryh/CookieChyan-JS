@@ -8,12 +8,12 @@ export default defineConfig({
       entry: "src/main.js",
       userscript: {
         name: "CookieChyan-JS",
-        version: "0.3.2",
+        version: "0.4.0",
         description: "A Convenience Tool to Retrieve Cookies in Any Webpage",
         author: "Harry Huang",
         license: "MIT",
         match: ["https://*/*", "http://*/*"],
-        grant: ["GM_setClipboard", "GM.cookie"],
+        grant: ["GM_setClipboard", "GM.cookie", "GM_getValue", "GM_setValue"],
         source: "https://github.com/isHarryh/CookieChyan-JS",
         namespace: "https://github.com/isHarryh/CookieChyan-JS",
         updateURL:

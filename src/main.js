@@ -1,15 +1,65 @@
 import "./style.css";
 import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
+import { ConfigHandler } from "./config.js";
 
 (function () {
   "use strict";
 
-  function showActionsDialog() {
+  // Iframes only
+  if (window.top !== window.self) {
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "COOKIE_CHYAN_GET_STORAGE") {
+        try {
+          const items = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            items.push({ name: k, value: window.localStorage.getItem(k) });
+          }
+          window.top.postMessage(
+            {
+              type: "COOKIE_CHYAN_STORAGE_RESPONSE",
+              origin: window.location.origin,
+              localStorage: items,
+            },
+            "*"
+          );
+        } catch (e) {}
+      }
+    });
+    return;
+  }
+
+  const injectedUrls = new Set();
+  const configHandler = new ConfigHandler();
+
+  async function injectCrossDomainFrames() {
+    const hostname = window.location.hostname;
+
+    (await configHandler.loadMappings()).forEach((rule) => {
+      if (hostname.includes(rule.trigger) && !injectedUrls.has(rule.inject)) {
+        log(`🎥 Trigger matched: ${rule.trigger}, injecting ${rule.inject}`);
+        try {
+          const iframe = document.createElement("iframe");
+          iframe.src = rule.inject;
+          iframe.style.display = "none";
+          document.body.appendChild(iframe);
+          injectedUrls.add(rule.inject);
+        } catch (e) {
+          log(`❌ Failed to inject iframe for ${rule.inject}: ${e.message}`);
+        }
+      }
+    });
+  }
+
+  async function showActionsDialog() {
     // Prevent multiple dialogs
     if (document.querySelector(".cookie-chyan-overlay")) {
       log("🙂 CookieChyan-JS dialog is already open.");
       return;
     }
+
+    // Inject iframes
+    injectCrossDomainFrames();
 
     const actions = [
       { text: "Cookie String", action: "cookie-string" },
@@ -46,19 +96,40 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
       btn.className = "cookie-chyan-dialog-button";
       btn.textContent = act.text;
       btn.addEventListener("click", async () => {
+        const allBtns = buttonContainer.querySelectorAll("button");
+        allBtns.forEach((b) => (b.disabled = true));
+
         const ok = await handleAction(act.action, statusDiv);
         statusDiv.style.color = ok ? "green" : "red";
+
         if (ok) {
           setTimeout(() => {
             overlay.classList.add("exit");
             setTimeout(() => overlay.remove(), 250);
           }, 250);
+        } else {
+          allBtns.forEach((b) => (b.disabled = false));
         }
       });
       buttonContainer.appendChild(btn);
     });
 
     dialog.appendChild(buttonContainer);
+
+    // Add table UI
+    const tableUI = configHandler.createTableUI(
+      await configHandler.loadMappings(),
+      async (updatedMappings) => {
+        // Filter out empty mappings
+        const validMappings = updatedMappings.filter(
+          (m) => m.trigger.trim() && m.inject.trim()
+        );
+        await configHandler.saveMappings(validMappings);
+        log(`✏️ Updated domain mappings: ${validMappings.length} entries`);
+      }
+    );
+    dialog.appendChild(tableUI);
+
     overlay.appendChild(dialog);
 
     // Overlay click handler
@@ -86,11 +157,13 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
         const cookies = await getCookiesData();
         output = JSON.stringify(cookies, null, 2);
       } else if (type === "origins-json") {
-        const origins = getOriginsData();
+        statusEl.textContent = "Scanning...";
+        const origins = await getOriginsData();
         output = JSON.stringify(origins, null, 2);
       } else if (type === "state-json") {
+        statusEl.textContent = "Scanning...";
         const cookies = await getCookiesData();
-        const origins = getOriginsData();
+        const origins = await getOriginsData();
         output = JSON.stringify({ cookies, origins }, null, 2);
       } else {
         log("❌ Unsupported copy format: " + type);
@@ -164,23 +237,54 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
     });
   }
 
-  function getOriginsData() {
-    const items = [];
-    try {
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        items.push({ name: k, value: window.localStorage.getItem(k) });
-      }
-    } catch (e) {
-      log("❌ Read localStorage failed, details show below.");
-      console.error(e);
-    }
-    return [
-      {
-        origin: window.location.origin,
-        localStorage: items,
-      },
-    ];
+  async function getOriginsData() {
+    return new Promise((resolve) => {
+      const results = [];
+
+      try {
+        const localItems = [];
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i);
+          localItems.push({ name: k, value: window.localStorage.getItem(k) });
+        }
+        results.push({
+          origin: window.location.origin,
+          localStorage: localItems,
+        });
+      } catch (e) {}
+
+      const messageHandler = (event) => {
+        if (event.data && event.data.type === "COOKIE_CHYAN_STORAGE_RESPONSE") {
+          const exists = results.some((r) => r.origin === event.data.origin);
+          if (!exists) {
+            log(`📦 Received storage data from: ${event.data.origin}`);
+            results.push({
+              origin: event.data.origin,
+              localStorage: event.data.localStorage,
+            });
+          }
+        }
+      };
+
+      window.addEventListener("message", messageHandler);
+
+      const frames = document.querySelectorAll("iframe");
+      log(`📡 Broadcasting storage request to ${frames.length} frames...`);
+
+      frames.forEach((f) => {
+        try {
+          f.contentWindow.postMessage(
+            { type: "COOKIE_CHYAN_GET_STORAGE" },
+            "*"
+          );
+        } catch (e) {}
+      });
+
+      setTimeout(() => {
+        window.removeEventListener("message", messageHandler);
+        resolve(results);
+      }, 500);
+    });
   }
 
   document.addEventListener("keydown", (e) => {

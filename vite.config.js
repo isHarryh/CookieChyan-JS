@@ -13,13 +13,16 @@ export default defineConfig({
         author: "Harry Huang",
         license: "MIT",
         match: ["https://*/*", "http://*/*"],
-        grant: ["GM_setClipboard", "GM_cookie"],
+        grant: ["GM_setClipboard", "GM.cookie"],
         source: "https://github.com/isHarryh/CookieChyan-JS",
         namespace: "https://github.com/isHarryh/CookieChyan-JS",
         updateURL:
           "https://github.com/isHarryh/CookieChyan-JS/raw/refs/heads/main/dist/cookiechyan-js.user.js",
         downloadURL:
           "https://github.com/isHarryh/CookieChyan-JS/raw/refs/heads/main/dist/cookiechyan-js.user.js",
+      },
+      server: {
+        mountGmApi: true,
       },
     }),
   ],

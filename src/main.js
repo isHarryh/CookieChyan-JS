@@ -129,16 +129,17 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
       sameSite: c.sameSite || "Lax",
     });
 
-    if (typeof GM_Cookie !== "undefined") {
+    if (typeof GM !== "undefined" && typeof GM.cookie !== "undefined") {
       try {
-        const list = await GM_Cookie.list({ url: window.location.href });
+        const list = await GM.cookie.list({ url: window.location.href });
         if (Array.isArray(list) && list.length) {
+          log("😊 Retrieved cookies via GM API");
           return list.map(normalize);
         }
-      } catch (e) {
-        log("❌ Invoke GM_Cookie list failed, using fallback.");
-      }
+      } catch {}
     }
+
+    log("😕 Invoke GM_Cookie list failed, using fallback.");
 
     // Fallback
     const raw = document.cookie || "";

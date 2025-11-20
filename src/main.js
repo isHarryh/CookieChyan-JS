@@ -126,7 +126,17 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
       expires: c.expirationDate || defaultExpires,
       httpOnly: !!c.httpOnly,
       secure: !!c.secure,
-      sameSite: c.sameSite || "Lax",
+      sameSite: ((s) => {
+        if (!s) return "Lax";
+        switch (s.toLowerCase()) {
+          case "none":
+            return "None";
+          case "strict":
+            return "Strict";
+          default:
+            return "Lax";
+        }
+      })(c.sameSite),
     });
 
     if (typeof GM !== "undefined" && typeof GM.cookie !== "undefined") {
@@ -150,11 +160,6 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
         name: name,
         value: value || "",
         domain: window.location.hostname,
-        path: "/",
-        expirationDate: null,
-        httpOnly: false,
-        secure: false,
-        sameSite: "Lax",
       });
     });
   }

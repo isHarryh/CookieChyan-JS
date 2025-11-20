@@ -51,8 +51,8 @@ import { log, copyToClipboardGM, copyToClipboardNav } from "./utils.js";
         if (ok) {
           setTimeout(() => {
             overlay.classList.add("exit");
-            setTimeout(() => overlay.remove(), 300);
-          }, 1000);
+            setTimeout(() => overlay.remove(), 250);
+          }, 250);
         }
       });
       buttonContainer.appendChild(btn);

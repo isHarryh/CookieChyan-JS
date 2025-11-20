@@ -56,6 +56,14 @@
   transform: translateY(0);
 }
 
+.cookie-chyan-dialog-status {
+  font-family: "Consolas";
+  font-size: 14px;
+  margin-bottom: 20px;
+  text-align: center;
+  min-height: 20px;
+}
+
 @keyframes fadeOut {
   from {
     opacity: 1;
